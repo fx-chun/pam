@@ -37,6 +37,7 @@ pub struct Client<'a, C: conv::Conversation> {
     is_authenticated: bool,
     has_open_session: bool,
     last_code: PamReturnCode,
+    items_holder: Vec<Vec<u8>>,
 }
 
 impl<'a> Client<'a, conv::PasswordConv> {
@@ -60,6 +61,7 @@ impl<'a, C: conv::Conversation> Client<'a, C> {
             is_authenticated: false,
             has_open_session: false,
             last_code: PamReturnCode::Success,
+            items_holder: Vec::new(),
         })
     }
 
@@ -112,6 +114,16 @@ impl<'a, C: conv::Conversation> Client<'a, C> {
                 Ok(username) => Ok(username.to_string()),
             }
         })
+    }
+
+    pub fn set_item(&mut self, item_type: PamItemType, item: &str) -> PamResult<()> {
+        let mut item = item.as_bytes().to_owned();
+        item.push(0);
+        set_item(self.handle, item_type, unsafe {
+            (item.as_ptr() as *const libc::c_void).as_ref().unwrap()
+        })?;
+        self.items_holder.push(item);
+        Ok(())
     }
 
     /// Open a session for a previously authenticated user and
