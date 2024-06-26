@@ -1,7 +1,7 @@
 //! Authentication related structure and functions
 use std::{env, ffi::CStr, os::raw::c_char};
 
-use crate::{conv, enums::*, functions::*, types::*};
+use crate::{conv, enums::*, functions::*, types::*, env::*};
 
 /// Main struct to authenticate a user
 ///
@@ -146,7 +146,7 @@ impl<'a, C: conv::Conversation> Client<'a, C> {
     pub fn get_env_list(&mut self) -> Vec<(String, String)> {
         let pam_env = getenvlist(self.handle);
         let mut env = vec![];
-        for (name, value) in pam_env {
+        for (name, value) in pam_env.to_vec() {
             env.push((name, value));
         }
         env
@@ -156,6 +156,14 @@ impl<'a, C: conv::Conversation> Client<'a, C> {
     // Currently always called from Client.open_session()
     fn initialize_environment(&mut self) -> PamResult<()> {
         use uzers::os::unix::UserExt;
+
+	// Set PAM environment in the local process
+        if let Some(mut env_list) = get_pam_env(self.handle) {
+	    let env = env_list.to_vec();
+	    for (key, value) in env {
+                env::set_var(&key, &value);
+	    }
+        }
 
         let user = uzers::get_user_by_name(&self.get_user()?).unwrap_or_else(|| {
             panic!(

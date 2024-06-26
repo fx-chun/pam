@@ -1,21 +1,23 @@
 use libc::c_char;
 use memchr::memchr;
+use crate::types::*;
+use pam_sys as raw;
 
-use std::vec::IntoIter;
 use std::ffi::{CStr, OsString};
 
+#[derive(Clone)]
 pub struct PamEnvList {
-    inner: IntoIter<(OsString, OsString)>
+    inner: Vec<(OsString, OsString)>
 }
 
-impl Iterator for PamEnvList {
-    type Item = (String, String);
-
-    fn next(&mut self) -> Option<(String, String)> {
-        self.inner.next().map(|(a, b)| (a.into_string().unwrap(), b.into_string().unwrap()))
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+pub fn get_pam_env(handle: &mut PamHandle) -> Option<PamEnvList> {
+    let env = unsafe {
+        raw::pam_getenvlist(handle)
+    };
+    if !env.is_null() {
+        Some(PamEnvList::from_ptr(env as *const *const c_char))
+    } else {
+        None
     }
 }
 
@@ -36,7 +38,11 @@ impl PamEnvList {
         }
 
         drop_env_list(ptr);
-        return PamEnvList { inner: result.into_iter() };
+        return PamEnvList { inner: result };
+    }
+
+    pub fn to_vec(&self) -> Vec<(String, String)> {
+	self.inner.clone().into_iter().map(|(a,b)| (a.into_string().unwrap(), b.into_string().unwrap())).collect()
     }
 }
 
